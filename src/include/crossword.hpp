@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <memory>
 
+
 namespace std {
     template<>
     struct hash<std::pair<size_t, size_t>> {
@@ -17,34 +18,31 @@ namespace std {
 
 namespace crossword {
     enum class CrosswordMode {
-        IDLE,
-        CREATE,
-        SOLVE
+        kIdle,
+        kCreate,
+        kSolve
     };
     
     class Crossword {
     private:
         std::string title;
         std::pair<size_t, size_t> grid_size;
-        std::vector<std::shared_ptr<Word>> unnumbered_words;
         std::map<int, std::shared_ptr<Word>> numbered_words;
-        std::map<std::pair<size_t, size_t>, std::shared_ptr<Word>> vertical_word_lookup;
-        std::map<std::pair<size_t, size_t>, std::shared_ptr<Word>> horizontal_word_lookup;
         std::unordered_map<std::string, std::shared_ptr<Word>> word_lookup;
+        std::unordered_map<std::pair<size_t, size_t>, std::shared_ptr<Word>> word_lookup_by_pos;
         CrosswordMode mode;
 
     public:
         Crossword(const std::string& title, const std::pair<size_t, size_t>& grid_size) :
-            title(title), grid_size(grid_size), mode(CrosswordMode::IDLE) {}
-        
+            title(title), grid_size(grid_size), mode(CrosswordMode::kIdle) {}
+
         const auto& getGridSize() const { return grid_size; }
-        const auto& getUnnumberedWords() const { return unnumbered_words; }
         const auto& getNumberedWords() const { return numbered_words; }
-        
+
         void setMode(CrosswordMode new_mode) { mode = new_mode; }
 
-        void addWord(std::shared_ptr<Word> word);
-        bool isValidWordPlacement(const Word& word) const;
+        void addWord(const std::string& word, const std::string& clue, const std::pair<size_t, size_t>& start_position, bool is_vertical);
+        bool isValidWordPlacement(const std::pair<size_t, size_t>& start_position, bool is_vertical, size_t size) const;
         void removeWord(const std::string& word);
         
         void enumerateWords();
