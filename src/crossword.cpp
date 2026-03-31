@@ -17,6 +17,12 @@ const WordsByDirection Crossword::getWords() const {
     return std::move(std::make_pair(horizontal_words, vertical_words));
 }
 
+void Crossword::clearGrid() {
+    for (auto& row : grid) {
+        std::fill(row.begin(), row.end(), kEmptyCell);
+    }
+}
+
 void Crossword::setMode(CrosswordMode new_mode) {
     if (mode == new_mode) {
         return;
@@ -25,6 +31,9 @@ void Crossword::setMode(CrosswordMode new_mode) {
         if (!validate()) {
             throw BasicException("Crossword is not valid. Please fix the issues before switching to SOLVE mode.");
         }
+    }
+    if (new_mode == CrosswordMode::kSolve) {
+        clearGrid();
     }
     mode = new_mode;
 }
@@ -289,9 +298,7 @@ void Crossword::clear() {
     if (mode != CrosswordMode::kCreate) {
         throw BasicException("Cannot clear crossword unless in CREATE mode.");
     }
-    for (auto& row : grid) {
-        std::fill(row.begin(), row.end(), kEmptyCell);
-    }
+    clearGrid();
     numbered_words.clear();
     word_lookup.clear();
     word_lookup_by_pos.clear();

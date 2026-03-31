@@ -36,7 +36,7 @@ namespace crossword {
     private:
         std::string title;
         std::pair<size_t, size_t> grid_size;
-        std::vector<std::vector<char>> grid;
+        std::vector<std::string> grid;
         std::multimap<int, std::shared_ptr<Word>> numbered_words;
         std::unordered_map<std::string, std::shared_ptr<Word>> word_lookup;
         std::unordered_multimap<std::pair<size_t, size_t>, std::shared_ptr<Word>> word_lookup_by_pos;
@@ -46,10 +46,11 @@ namespace crossword {
         bool isValidWordPlacement(const std::pair<size_t, size_t>& start_position, bool is_vertical, size_t size) const;
         void placeWordsOnGrid();
         void enumerateWords();
+        void clearGrid();
     public:
         Crossword(const std::string& title, const std::pair<size_t, size_t>& grid_size) :
             title(title), grid_size(grid_size), mode(CrosswordMode::kIdle) {
-                grid.resize(grid_size.first, std::vector<char>(grid_size.second, kEmptyCell));
+                grid.resize(grid_size.first, std::string(grid_size.second, kEmptyCell));
             }
 
         const auto& getTitle() const { return title; }
@@ -72,6 +73,9 @@ namespace crossword {
 
         void saveToFile(const std::string& filename) const;
         static Crossword loadFromFile(const std::string& filename);
+
+        // Режим решения
+        
     };
 }
     
