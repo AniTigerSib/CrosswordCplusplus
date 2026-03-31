@@ -335,6 +335,7 @@ Crossword Crossword::loadFromFile(const std::string& filename) {
         in >> rows >> cols;
         in.ignore(); // Игнорируем символ новой строки после чисел
         Crossword crossword(title, {rows, cols});
+        crossword.setMode(CrosswordMode::kCreate);
         size_t word_count;
         in >> word_count;
         in.ignore();

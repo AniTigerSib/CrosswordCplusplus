@@ -8,6 +8,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Source files
 set(SOURCES
     src/main.cpp
+    src/crossword.cpp
+    src/word.cpp
+    src/console_ui.cpp
 )
 
 # Create executable
