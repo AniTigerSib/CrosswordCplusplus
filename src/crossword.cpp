@@ -5,37 +5,37 @@
 using namespace crossword;
 
 const WordsByDirection Crossword::getWords() const {
-    std::vector<std::reference_wrapper<const Word>> horizontal_words;
-    std::vector<std::reference_wrapper<const Word>> vertical_words;
-    for (const auto& [_, word_ptr] : word_lookup) {
-        if (word_ptr->getIsVertical()) {
-            vertical_words.push_back(std::cref(*word_ptr));
-        } else {
-            horizontal_words.push_back(std::cref(*word_ptr));
-        }
+  std::vector<std::reference_wrapper<const Word>> horizontal_words;
+  std::vector<std::reference_wrapper<const Word>> vertical_words;
+  for (const auto& [_, word_ptr] : word_lookup) {
+    if (word_ptr->getIsVertical()) {
+      vertical_words.push_back(std::cref(*word_ptr));
+    } else {
+      horizontal_words.push_back(std::cref(*word_ptr));
     }
-    return std::move(std::make_pair(horizontal_words, vertical_words));
+  }
+  return std::move(std::make_pair(horizontal_words, vertical_words));
 }
 
 void Crossword::clearGrid() {
-    for (auto& row : grid) {
-        std::fill(row.begin(), row.end(), kEmptyCell);
-    }
+  for (auto& row : grid) {
+    std::fill(row.begin(), row.end(), kEmptyCell);
+  }
 }
 
 void Crossword::setMode(CrosswordMode new_mode) {
-    if (mode == new_mode) {
-        return;
+  if (mode == new_mode) {
+    return;
+  }
+  if (mode == CrosswordMode::kCreate) {
+    if (!validate()) {
+      throw BasicException("Crossword is not valid. Please fix the issues before switching to SOLVE mode.");
     }
-    if (mode == CrosswordMode::kCreate) {
-        if (!validate()) {
-            throw BasicException("Crossword is not valid. Please fix the issues before switching to SOLVE mode.");
-        }
-    }
-    if (new_mode == CrosswordMode::kSolve) {
-        clearGrid();
-    }
-    mode = new_mode;
+  }
+  if (new_mode == CrosswordMode::kSolve) {
+    clearGrid();
+  }
+  mode = new_mode;
 }
 
 void Crossword::addWord(const std::string& word, const std::string& clue, const std::pair<size_t, size_t>& start_position, bool is_vertical) {
@@ -59,7 +59,7 @@ void Crossword::addWord(const std::string& word, const std::string& clue, const 
             }
         }
     }
-    auto new_word = std::make_shared<Word>(word, clue, start_position, is_vertical);
+    auto new_word = std::make_shared<Word>(new Word(word, clue, start_position, is_vertical));
     word_lookup[word] = new_word;
     word_lookup_by_pos.emplace(start_position, new_word);
     enumerateWords();
@@ -353,4 +353,156 @@ Crossword Crossword::loadFromFile(const std::string& filename) {
     } catch (const std::exception& e) {
         throw BasicException("Failed to load crossword from file: " + std::string(e.what()));
     }
+}
+
+
+void Crossword::makePositionsForSolveMode() {
+  if (mode != CrosswordMode::kSolve) {
+    throw BasicException("Can only make positions for solve mode when in SOLVE mode.");
+  }
+  if (!numbered_positions.empty()) {
+  numbered_positions.clear();
+  }
+  for (const auto& [number, word_ptr] : numbered_words) {
+    const bool vertical = word_ptr->getIsVertical();
+
+    auto new_word = std::make_unique<Word>(
+        new Word(std::string(word_ptr->getWord().size(), kFilledCell),
+                 word_ptr->getClue(),
+                 word_ptr->getStartPosition(),
+                 vertical));
+    new_word->setNumber(number);
+    numbered_positions.emplace(number, std::move(new_word));
+  }
+}
+
+void Crossword::placePositionsOnGrid() {
+    if (mode != CrosswordMode::kSolve) {
+        throw BasicException("Can only place positions on grid when in SOLVE mode.");
+    }
+    for (auto& row : grid) {
+        std::fill(row.begin(), row.end(), kEmptyCell);
+    }
+    for (const auto& [_, pos_ptr] : numbered_positions) {
+        const auto& word = pos_ptr->getWord();
+        const auto& start_pos = pos_ptr->getStartPosition();
+        if (pos_ptr->getIsVertical()) {
+            for (size_t i = 0; i < word.length(); ++i) {
+                grid[start_pos.first + i][start_pos.second] = word[i];
+            }
+        } else {
+            for (size_t i = 0; i < word.length(); ++i) {
+                grid[start_pos.first][start_pos.second + i] = word[i];
+            }
+        }
+    }
+}
+
+// Very complex method. Needs to be reworked.
+void Crossword::placeAnswer(const std::string& word, const int number, bool is_vertical) {
+    if (mode != CrosswordMode::kSolve) {
+        throw BasicException("Can only place answers when in SOLVE mode.");
+    }
+    auto [pos_ptr, end_ptr] = numbered_positions.equal_range(number);
+    if (pos_ptr == end_ptr) {
+        throw BasicException("No position exists with the specified number.");
+    }
+    for (; pos_ptr != end_ptr; ++pos_ptr) {
+        if (pos_ptr->second->getIsVertical() == is_vertical) {
+            break;
+        }
+    }
+    if (pos_ptr == end_ptr) {
+        throw BasicException("No position exists with the specified number and direction.");
+    }
+    auto& pos = pos_ptr->second;
+    if (pos->getWord().size() != word.size()) {
+        throw BasicException("Provided answer does not match the position's length.");
+    }
+
+    const auto& start_pos = pos->getStartPosition();
+    for (const auto& [_, other_pos] : numbered_positions) {
+        if (other_pos.get() == pos.get() || other_pos->getIsVertical() == is_vertical) {
+            continue;
+        }
+
+        const auto& other_start = other_pos->getStartPosition();
+        const size_t other_length = other_pos->getWord().size();
+        size_t this_letter_index = 0;
+        size_t other_letter_index = 0;
+        bool collides = false;
+
+        if (is_vertical) {
+            const size_t row = other_start.first;
+            const size_t col = start_pos.second;
+            if (row >= start_pos.first && row < start_pos.first + word.size() &&
+                col >= other_start.second && col < other_start.second + other_length) {
+                this_letter_index = row - start_pos.first;
+                other_letter_index = col - other_start.second;
+                collides = true;
+            }
+        } else {
+            const size_t row = start_pos.first;
+            const size_t col = other_start.second;
+            if (row >= other_start.first && row < other_start.first + other_length &&
+                col >= start_pos.second && col < start_pos.second + word.size()) {
+                this_letter_index = col - start_pos.second;
+                other_letter_index = row - other_start.first;
+                collides = true;
+            }
+        }
+
+        if (!collides) {
+            continue;
+        }
+
+        const char other_letter = other_pos->getWord()[other_letter_index];
+        if (other_letter != kFilledCell && word[this_letter_index] != other_letter) {
+            throw BasicException("Incorrect letter #" + std::to_string(this_letter_index + 1) +
+                                 " collides with word #" + std::to_string(other_pos->getNumber()) + ".");
+        }
+    }
+
+    pos->setWord(word);
+    if (is_vertical) {
+        for (size_t i = 0; i < word.length(); ++i) {
+            grid[start_pos.first + i][start_pos.second] = word[i];
+        }
+    } else {
+        for (size_t i = 0; i < word.length(); ++i) {
+            grid[start_pos.first][start_pos.second + i] = word[i];
+        }
+    }
+    placePositionsOnGrid();
+}
+
+void Crossword::removeAnswer(const int number, bool is_vertical) {
+    if (mode != CrosswordMode::kSolve) {
+        throw BasicException("Can only remove answers when in SOLVE mode.");
+    }
+    auto [pos_ptr, end_ptr] = numbered_positions.equal_range(number);
+    if (pos_ptr == end_ptr) {
+        throw BasicException("No position exists with the specified number.");
+    }
+    for (; pos_ptr != end_ptr; ++pos_ptr) {
+        if (pos_ptr->second->getIsVertical() == is_vertical) {
+            break;
+        }
+    }
+    auto& word = pos_ptr->second;
+    std::fill(word->getWord().begin(), word->getWord().end(), kFilledCell);
+    placePositionsOnGrid();
+}
+
+bool Crossword::validateSolution() const {
+    if (mode != CrosswordMode::kSolve) {
+        throw BasicException("Can only validate solution when in SOLVE mode.");
+    }
+    for (const auto& [number, pos_ptr] : numbered_positions) {
+        const auto& correct_word = word_lookup.at(pos_ptr->getWord())->getWord();
+        if (pos_ptr->getWord() != correct_word) {
+            return false;
+        }
+    }
+    return true;
 }

@@ -5,6 +5,8 @@
 #include <cctype>
 #include <iostream>
 
+// Вроде как более корректный вариант работы с неймспейсами
+// в фалах исходников
 namespace crossword::ui {
 
 void InitConsole() {
@@ -13,7 +15,7 @@ void InitConsole() {
 }
 
 void ClearScreen() {
-  // Plain console output: separate screens with blank lines.
+  // Можно клинить консоль, но для простоты разделим пустыми строками
   std::cout << "\n\n" << std::flush;
 }
 

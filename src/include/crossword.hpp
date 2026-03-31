@@ -19,6 +19,7 @@ namespace std {
 
 namespace crossword {
   const char kEmptyCell = ' ';
+  const char kFilledCell = '#';
   typedef std::pair<std::vector<std::reference_wrapper<const Word>>, std::vector<std::reference_wrapper<const Word>>> WordsByDirection;
 
   enum class CrosswordMode {
@@ -40,6 +41,7 @@ namespace crossword {
     std::multimap<int, std::shared_ptr<Word>> numbered_words;
     std::unordered_map<std::string, std::shared_ptr<Word>> word_lookup;
     std::unordered_multimap<std::pair<size_t, size_t>, std::shared_ptr<Word>> word_lookup_by_pos;
+    std::multimap<int, std::unique_ptr<Word>> numbered_positions;
 
     CrosswordMode mode;
 
@@ -47,6 +49,9 @@ namespace crossword {
     void placeWordsOnGrid();
     void enumerateWords();
     void clearGrid();
+
+    void makePositionsForSolveMode();
+    void placePositionsOnGrid();
   public:
     Crossword(const std::string& title, const std::pair<size_t, size_t>& grid_size) :
       title(title), grid_size(grid_size), mode(CrosswordMode::kIdle) {
@@ -76,6 +81,11 @@ namespace crossword {
 
     // Режим решения
 
+    void placeAnswer(const std::string& word, const int number, bool is_vertical);
+    void removeAnswer(const int number, bool is_vertical);
+    bool validateSolution() const;
+    void saveSolutionToFile(const std::string& filename) const;
+    static Crossword loadSolutionFromFile(const std::string& filename);
   };
 }
     
