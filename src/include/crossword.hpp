@@ -68,7 +68,7 @@ namespace crossword {
     void addWord(const std::string& word, const std::string& clue, const std::pair<size_t, size_t>& start_position, bool is_vertical);
     bool validate() const;
     void removeWord(const std::string& word);
-    void removeWordByNumber(int number);
+    void removeWordByNumber(int number, bool is_vertical);
     void clear();
 
     const Word& findWord(const std::string& word) const;

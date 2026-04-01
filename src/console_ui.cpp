@@ -9,17 +9,17 @@
 // в фалах исходников
 namespace crossword::ui {
 
-void InitConsole() {
+void initConsole() {
   std::ios::sync_with_stdio(false);
   std::cin.tie(nullptr);
 }
 
-void ClearScreen() {
+void clearScreen() {
   // Можно клинить консоль, но для простоты разделим пустыми строками
   std::cout << "\n\n" << std::flush;
 }
 
-std::string ReadLinePrompt(const std::string& prompt) {
+std::string readLinePrompt(const std::string& prompt) {
   std::cout << prompt << std::flush;
   std::string value;
   if (!std::getline(std::cin, value)) {
@@ -28,9 +28,9 @@ std::string ReadLinePrompt(const std::string& prompt) {
   return value;
 }
 
-size_t ReadSizeT(const std::string& prompt) {
+size_t readSizeT(const std::string& prompt) {
   while (true) {
-    const std::string token = ReadLinePrompt(prompt);
+    const std::string token = readLinePrompt(prompt);
     if (token.empty()) {
       std::cout << "Invalid input. Try again." << std::endl;
       continue;
@@ -50,9 +50,9 @@ size_t ReadSizeT(const std::string& prompt) {
   }
 }
 
-bool ReadYesNo(const std::string& prompt) {
+bool readYesNo(const std::string& prompt) {
   while (true) {
-    const std::string token = ReadLinePrompt(prompt);
+    const std::string token = readLinePrompt(prompt);
     if (token.empty()) {
       continue;
     }
@@ -70,33 +70,33 @@ bool ReadYesNo(const std::string& prompt) {
   }
 }
 
-WordInput ReadWordInput() {
+WordInput readWordInput() {
   WordInput input{};
-  input.word = ReadLinePrompt("Word: ");
-  input.clue = ReadLinePrompt("Clue: ");
-  input.row = ReadSizeT("Start row: ");
-  input.col = ReadSizeT("Start col: ");
-  input.is_vertical = ReadYesNo("Vertical? (y/n): ");
+  input.word = readLinePrompt("Word: ");
+  input.clue = readLinePrompt("Clue: ");
+  input.row = readSizeT("Start row: ");
+  input.col = readSizeT("Start col: ");
+  input.is_vertical = readYesNo("Vertical? (y/n): ");
   return input;
 }
 
-Crossword CreateCrosswordInteractive() {
-  const std::string title = ReadLinePrompt("Crossword title: ");
-  const size_t rows = ReadSizeT("Rows: ");
-  const size_t cols = ReadSizeT("Cols: ");
+Crossword createCrosswordInteractive() {
+  const std::string title = readLinePrompt("Crossword title: ");
+  const size_t rows = readSizeT("Rows: ");
+  const size_t cols = readSizeT("Cols: ");
 
   Crossword crossword(title, {rows, cols});
   crossword.setMode(CrosswordMode::kCreate);
   return crossword;
 }
 
-void AddWordInteractive(Crossword& crossword) {
-  const WordInput input = ReadWordInput();
+void addWordInteractive(Crossword& crossword) {
+  const WordInput input = readWordInput();
   crossword.addWord(input.word, input.clue, {input.row, input.col},
                     input.is_vertical);
 }
 
-void PrintClues(const Crossword& crossword, std::ostream& out) {
+void printClues(const Crossword& crossword, std::ostream& out) {
   auto [across_words, down_words] = crossword.getWords();
   const auto by_number =
       [](const std::reference_wrapper<const Word>& lhs,
@@ -120,7 +120,7 @@ void PrintClues(const Crossword& crossword, std::ostream& out) {
   }
 }
 
-void DisplayCrossword(const Crossword& crossword, std::ostream& out) {
+void displayCrossword(const Crossword& crossword, std::ostream& out) {
   const auto& grid = crossword.getGrid();
   const auto [rows, cols] = crossword.getGridSize();
 
@@ -136,12 +136,98 @@ void DisplayCrossword(const Crossword& crossword, std::ostream& out) {
   }
 }
 
-void SaveCrosswordToFile(const Crossword& crossword, const std::string& filename) {
-  crossword.saveToFile(filename);
+void HandleCreate(std::unique_ptr<Crossword>* crossword_ptr) {
+  *crossword_ptr = std::make_unique<Crossword>(
+      crossword::ui::createCrosswordInteractive());
+  std::cout << "Crossword created in CREATE mode." << std::endl;
 }
 
-Crossword LoadCrosswordFromFile(const std::string& filename) {
-  return Crossword::loadFromFile(filename);
+void HandleAddWord(Crossword* crossword_ptr) {
+  crossword::ui::addWordInteractive(*crossword_ptr);
+  std::cout << "Word added." << std::endl;
+}
+
+void HandleRemoveWord(Crossword* crossword_ptr) {
+  if (crossword::ui::readYesNo("Remove by number? (y/n): ")) {
+    const size_t number = crossword::ui::readSizeT("Word number: ");
+    const bool is_vertical = crossword::ui::readYesNo("Is vertical? (y/n): ");
+    crossword_ptr->removeWordByNumber(static_cast<int>(number), is_vertical);
+  } else {
+    const std::string word = crossword::ui::readLinePrompt("Word text: ");
+    crossword_ptr->removeWord(word);
+  }
+
+  std::cout << "Word removed." << std::endl;
+}
+
+void HandleDisplay(const Crossword& crossword) {
+  crossword::ui::displayCrossword(crossword);
+  crossword::ui::printClues(crossword);
+}
+
+void HandleValidate(const Crossword& crossword) {
+  std::cout << "Crossword is "
+            << (crossword.validate() ? "valid." : "invalid.") << std::endl;
+}
+
+void HandleSave(const Crossword& crossword) {
+  const std::string filename = crossword::ui::readLinePrompt("Save filename: ");
+  crossword.saveToFile(filename);
+  std::cout << "Saved to '" << filename << "'." << std::endl;
+}
+
+void HandleLoad(std::unique_ptr<Crossword>* crossword_ptr) {
+  const std::string filename = crossword::ui::readLinePrompt("Load filename: ");
+  Crossword loaded = Crossword::loadFromFile(filename);
+  *crossword_ptr = std::make_unique<Crossword>(std::move(loaded));
+  std::cout << "Crossword loaded in CREATE mode." << std::endl;
+}
+
+void HandleSwitchMode(Crossword* crossword_ptr, CrosswordMode mode) {
+  crossword_ptr->setMode(mode);
+  if (mode == CrosswordMode::kCreate) {
+    std::cout << "Switched to CREATE mode." << std::endl;
+    return;
+  }
+
+  std::cout << "Switched to SOLVE mode." << std::endl;
+}
+
+void HandlePlaceAnswer(Crossword* crossword_ptr) {
+  const size_t number = crossword::ui::readSizeT("Word number: ");
+  const bool is_vertical = crossword::ui::readYesNo("Vertical? (y/n): ");
+  const std::string word = crossword::ui::readLinePrompt("Answer: ");
+  crossword_ptr->placeAnswer(word, static_cast<int>(number), is_vertical);
+  std::cout << "Answer placed." << std::endl;
+}
+
+void HandleRemoveAnswer(Crossword* crossword_ptr) {
+  const size_t number = crossword::ui::readSizeT("Word number: ");
+  const bool is_vertical = crossword::ui::readYesNo("Vertical? (y/n): ");
+  crossword_ptr->removeAnswer(static_cast<int>(number), is_vertical);
+  std::cout << "Answer removed." << std::endl;
+}
+
+void HandleValidateSolution(const Crossword& crossword) {
+  const bool is_valid = crossword.validateSolution();
+  std::cout << "Solution is " << (is_valid ? "valid." : "invalid.")
+            << std::endl;
+}
+
+void HandleSaveSolution(const Crossword& crossword) {
+  const std::string filename =
+      crossword::ui::readLinePrompt("Save solution filename: ");
+  crossword.saveSolutionToFile(filename);
+  std::cout << "Solution saved to '" << filename << "'." << std::endl;
+}
+
+void HandleLoadSolution(std::unique_ptr<Crossword>* crossword_ptr) {
+  const std::string filename =
+      crossword::ui::readLinePrompt("Load solution filename: ");
+  Crossword loaded = Crossword::loadSolutionFromFile(filename);
+  *crossword_ptr = std::make_unique<Crossword>(std::move(loaded));
+  std::cout << "Solution state loaded from '" << filename << "'."
+            << std::endl;
 }
 
 }  // namespace crossword::ui

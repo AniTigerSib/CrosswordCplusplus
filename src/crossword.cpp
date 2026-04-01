@@ -32,10 +32,15 @@ void Crossword::setMode(CrosswordMode new_mode) {
       throw BasicException("Crossword is not valid. Please fix the issues before switching to SOLVE mode.");
     }
   }
-  if (new_mode == CrosswordMode::kSolve) {
-    clearGrid();
-  }
   mode = new_mode;
+  if (mode == CrosswordMode::kSolve) {
+    clearGrid();
+    makePositionsForSolveMode();
+    placePositionsOnGrid();
+  }
+  if (mode == CrosswordMode::kCreate) {
+    placeWordsOnGrid();
+  }
 }
 
 void Crossword::addWord(const std::string& word, const std::string& clue, const std::pair<size_t, size_t>& start_position, bool is_vertical) {
@@ -59,7 +64,7 @@ void Crossword::addWord(const std::string& word, const std::string& clue, const 
             }
         }
     }
-    auto new_word = std::make_shared<Word>(new Word(word, clue, start_position, is_vertical));
+    auto new_word = std::make_shared<Word>(word, clue, start_position, is_vertical);
     word_lookup[word] = new_word;
     word_lookup_by_pos.emplace(start_position, new_word);
     enumerateWords();
@@ -107,7 +112,7 @@ void Crossword::removeWord(const std::string& word) {
     enumerateWords();
 }
 
-void Crossword::removeWordByNumber(int number) {
+void Crossword::removeWordByNumber(int number, bool is_vertical) {
     if (mode != CrosswordMode::kCreate) {
         throw BasicException("Cannot remove words unless in CREATE mode.");
     }
@@ -122,7 +127,7 @@ void Crossword::removeWordByNumber(int number) {
     } else {
         bool found = false;
         for (; pos_it != end_it && !found; ++pos_it) {
-            if (pos_it->second->getNumber() == number) {
+            if (pos_it->second->getIsVertical() == is_vertical) {
                 found = true;
             }
         }
@@ -366,11 +371,11 @@ void Crossword::makePositionsForSolveMode() {
   for (const auto& [number, word_ptr] : numbered_words) {
     const bool vertical = word_ptr->getIsVertical();
 
-    auto new_word = std::make_unique<Word>(
-        new Word(std::string(word_ptr->getWord().size(), kFilledCell),
-                 word_ptr->getClue(),
-                 word_ptr->getStartPosition(),
-                 vertical));
+    auto new_word =
+        std::make_unique<Word>(std::string(word_ptr->getWord().size(), kFilledCell),
+                               word_ptr->getClue(),
+                               word_ptr->getStartPosition(),
+                               vertical);
     new_word->setNumber(number);
     numbered_positions.emplace(number, std::move(new_word));
   }
@@ -388,11 +393,15 @@ void Crossword::placePositionsOnGrid() {
         const auto& start_pos = pos_ptr->getStartPosition();
         if (pos_ptr->getIsVertical()) {
             for (size_t i = 0; i < word.length(); ++i) {
-                grid[start_pos.first + i][start_pos.second] = word[i];
+                if (grid[start_pos.first + i][start_pos.second] == kEmptyCell || 
+                    word[i] != kFilledCell)
+                    grid[start_pos.first + i][start_pos.second] = word[i];
             }
         } else {
             for (size_t i = 0; i < word.length(); ++i) {
-                grid[start_pos.first][start_pos.second + i] = word[i];
+                if (grid[start_pos.first][start_pos.second + i] == kEmptyCell ||
+                    word[i] != kFilledCell)
+                    grid[start_pos.first][start_pos.second + i] = word[i];
             }
         }
     }
@@ -490,7 +499,7 @@ void Crossword::removeAnswer(const int number, bool is_vertical) {
         }
     }
     auto& word = pos_ptr->second;
-    std::fill(word->getWord().begin(), word->getWord().end(), kFilledCell);
+    word->setWord(std::string(word->getWord().size(), kFilledCell));
     placePositionsOnGrid();
 }
 
@@ -499,10 +508,128 @@ bool Crossword::validateSolution() const {
         throw BasicException("Can only validate solution when in SOLVE mode.");
     }
     for (const auto& [number, pos_ptr] : numbered_positions) {
-        const auto& correct_word = word_lookup.at(pos_ptr->getWord())->getWord();
-        if (pos_ptr->getWord() != correct_word) {
+        const auto [begin_it, end_it] = numbered_words.equal_range(number);
+        auto word_it = begin_it;
+        for (; word_it != end_it; ++word_it) {
+            if (word_it->second->getIsVertical() == pos_ptr->getIsVertical()) {
+                break;
+            }
+        }
+        if (word_it == end_it) {
+            throw CriticalException("Crossword numbering is inconsistent.");
+        }
+        if (pos_ptr->getWord() != word_it->second->getWord()) {
             return false;
         }
     }
     return true;
+}
+
+void Crossword::saveSolutionToFile(const std::string& filename) const {
+    saveToFile(filename);
+
+    std::ofstream out(filename, std::ios::app);
+    if (!out) {
+        throw BasicException("Failed to open file for writing.");
+    }
+
+    const bool has_solve_state = mode == CrosswordMode::kSolve;
+    out << has_solve_state << "\n";
+    if (!has_solve_state) {
+        return;
+    }
+
+    out << numbered_positions.size() << "\n";
+    for (const auto& [number, pos_ptr] : numbered_positions) {
+        out << number << " " << pos_ptr->getIsVertical() << "\n";
+        out << pos_ptr->getWord() << "\n";
+    }
+}
+
+Crossword Crossword::loadSolutionFromFile(const std::string& filename) {
+    Crossword crossword = loadFromFile(filename);
+
+    std::ifstream in(filename);
+    if (!in) {
+        throw BasicException("Failed to open file for reading.");
+    }
+
+    try {
+        std::string title;
+        std::getline(in, title);
+        (void)title;
+
+        size_t rows, cols;
+        in >> rows >> cols;
+        in.ignore();
+        (void)rows;
+        (void)cols;
+
+        size_t word_count;
+        in >> word_count;
+        in.ignore();
+
+        for (size_t i = 0; i < word_count; ++i) {
+            std::string word, clue;
+            std::getline(in, word);
+            std::getline(in, clue);
+
+            size_t start_row, start_col;
+            bool is_vertical;
+            in >> start_row >> start_col >> is_vertical;
+            in.ignore();
+        }
+
+        bool has_solve_state = false;
+        if (!(in >> has_solve_state)) {
+            return crossword;
+        }
+        in.ignore();
+
+        if (!has_solve_state) {
+            return crossword;
+        }
+
+        crossword.setMode(CrosswordMode::kSolve);
+        crossword.makePositionsForSolveMode();
+
+        size_t position_count;
+        if (!(in >> position_count)) {
+            throw BasicException("Missing saved solve state.");
+        }
+        in.ignore();
+
+        for (size_t i = 0; i < position_count; ++i) {
+            int number;
+            bool is_vertical;
+            if (!(in >> number >> is_vertical)) {
+                throw BasicException("Invalid saved solve position header.");
+            }
+            in.ignore();
+
+            std::string saved_word;
+            if (!std::getline(in, saved_word)) {
+                throw BasicException("Invalid saved solve position value.");
+            }
+
+            auto [pos_it, end_it] = crossword.numbered_positions.equal_range(number);
+            for (; pos_it != end_it; ++pos_it) {
+                if (pos_it->second->getIsVertical() == is_vertical) {
+                    break;
+                }
+            }
+            if (pos_it == end_it) {
+                throw BasicException("Saved solve position not found in crossword.");
+            }
+            if (pos_it->second->getWord().size() != saved_word.size()) {
+                throw BasicException("Saved solve answer size does not match crossword position.");
+            }
+            pos_it->second->setWord(saved_word);
+        }
+
+        crossword.placePositionsOnGrid();
+        return crossword;
+    } catch (const std::exception& e) {
+        throw BasicException("Failed to load solution from file: " + std::string(e.what()));
+    }
 }

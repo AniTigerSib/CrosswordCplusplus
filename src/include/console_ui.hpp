@@ -15,18 +15,31 @@ namespace crossword::ui {
     bool is_vertical;
   };
 
-  void InitConsole();
-  void ClearScreen();
-  std::string ReadLinePrompt(const std::string& prompt);
-  size_t ReadSizeT(const std::string& prompt);
-  bool ReadYesNo(const std::string& prompt);
-  WordInput ReadWordInput();
-  Crossword CreateCrosswordInteractive();
-  void AddWordInteractive(Crossword& crossword);
-  void PrintClues(const Crossword& crossword, std::ostream& out = std::cout);
-  void DisplayCrossword(const Crossword& crossword, std::ostream& out = std::cout);
-  void SaveCrosswordToFile(const Crossword& crossword, const std::string& filename);
-  Crossword LoadCrosswordFromFile(const std::string& filename);
+  void initConsole();
+  void clearScreen();
+  std::string readLinePrompt(const std::string& prompt);
+  size_t readSizeT(const std::string& prompt);
+  bool readYesNo(const std::string& prompt);
+  WordInput readWordInput();
+  Crossword createCrosswordInteractive();
+  void addWordInteractive(Crossword& crossword);
+  void printClues(const Crossword& crossword, std::ostream& out = std::cout);
+  void displayCrossword(const Crossword& crossword, std::ostream& out = std::cout);
+
+  void HandleCreate(std::unique_ptr<Crossword>* crossword_ptr);
+  void HandleAddWord(Crossword* crossword_ptr);
+  void HandleRemoveWord(Crossword* crossword_ptr);
+  void HandleDisplay(const Crossword& crossword);
+  void HandleValidate(const Crossword& crossword);
+  void HandleSave(const Crossword& crossword);
+  void HandleLoad(std::unique_ptr<Crossword>* crossword_ptr);
+  void HandleSwitchMode(Crossword* crossword_ptr, CrosswordMode new_mode);
+
+  void HandlePlaceAnswer(Crossword* crossword_ptr);
+  void HandleRemoveAnswer(Crossword* crossword_ptr);
+  void HandleValidateSolution(const Crossword& crossword);
+  void HandleSaveSolution(const Crossword& crossword);
+  void HandleLoadSolution(std::unique_ptr<Crossword>* crossword_ptr);
 }
 
 #endif // CONSOLE_UI_HPP
